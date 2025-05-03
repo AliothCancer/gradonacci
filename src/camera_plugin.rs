@@ -4,6 +4,8 @@ use bevy::core_pipeline::bloom::Bloom;
 use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::prelude::*;
 
+use crate::{Line, Player};
+
 /// Camera lerp factor.
 const CAM_LERP_FACTOR: f32 = 3.7;
 
@@ -15,12 +17,40 @@ impl Plugin for CameraPlugin {
     }
 }
 
-fn setup_camera(mut commands: Commands) {
-    let mut orto_proj = OrthographicProjection::default_2d();
-    *orto_proj.get_field_mut::<f32>("scale").unwrap() = 1.;
+fn setup_camera_v2(mut commands: Commands) {
     commands.spawn((
         Camera2d,
-        orto_proj,
+        Camera {
+            hdr: true, // HDR is required for the bloom effect
+            ..default()
+        },
+        Bloom::NATURAL,
+    ));
+}
+
+/// How quickly should the camera snap to the desired location.
+const CAMERA_DECAY_RATE: f32 = 2.;
+
+/// Update the camera position by tracking the player.
+fn update_camera_v2(
+    mut camera: Single<&mut Transform, (With<Camera2d>, Without<Player>)>,
+    player: Single<&Transform, (With<Player>, Without<Camera2d>)>,
+    time: Res<Time>,
+) {
+    let Vec3 { x, y, .. } = player.translation;
+    let direction = Vec3::new(x, y, camera.translation.z);
+
+    // Applies a smooth effect to camera movement using stable interpolation
+    // between the camera position and the player position on the x and y axes.
+    camera
+        .translation
+        .smooth_nudge(&direction, CAMERA_DECAY_RATE, time.delta_secs());
+}
+
+
+fn setup_camera(mut commands: Commands) {
+    commands.spawn((
+        Camera2d,
         Camera {
             hdr: true, // 1. HDR is required for bloom
             ..default()
@@ -32,19 +62,31 @@ fn setup_camera(mut commands: Commands) {
 
 /// Update the camera position by tracking the player.
 fn update_camera(
-    mut camera_query: Query<(&mut Transform, &mut OrthographicProjection), With<Camera2d>>,
+    mut camera_query: Query<&mut Transform, (With<Camera2d>, Without<Line>)>,
     kb_input: Res<ButtonInput<KeyCode>>,
+    player_pos: Query<&Transform, (With<Line>, Without<Camera2d>)>,
     time: Res<Time>,
 ) {
-    let (mut _transform, mut camera_projection) = camera_query.single_mut();
+    let mut cam_transform = camera_query.single_mut().unwrap();
+    let player_transform = player_pos.single().unwrap();
 
+    let Vec3 { x, y, .. } = player_transform.translation;
+    let direction = Vec3::new(x, y, cam_transform.translation.z);
 
-    let vel = 1.;
+    // Applies a smooth effect to camera movement using stable interpolation
+    // between the camera position and the player position on the x and y axes.
+    cam_transform
+        .translation
+        .smooth_nudge(&direction, CAMERA_DECAY_RATE, time.delta_secs());
+
+    let vel = 0.2;
     if kb_input.pressed(KeyCode::NumpadAdd) {
-        camera_projection.scale += 1. * time.delta_secs() * vel;
+        cam_transform.scale.x += 1. * time.delta_secs() * vel;
+        cam_transform.scale.y += 1. * time.delta_secs() * vel;
     }
     if kb_input.pressed(KeyCode::NumpadSubtract) {
-        camera_projection.scale -= 1. * time.delta_secs() * vel;
+        cam_transform.scale.x -= 1. * time.delta_secs() * vel;
+        cam_transform.scale.y -= 1. * time.delta_secs() * vel;
     }
-
+    println!("x:{}, y{}", cam_transform.scale.x, cam_transform.scale.y)
 }
