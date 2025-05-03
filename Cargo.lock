@@ -365,6 +365,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy-fps-counter"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46fc123b3ad19dc85d7df940b4f7b557b7eb187591faf573e6105b26f069f0ac"
+dependencies = [
+ "bevy",
+]
+
+[[package]]
 name = "bevy_a11y"
 version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2435,6 +2444,7 @@ version = "0.1.0"
 dependencies = [
  "avian2d",
  "bevy",
+ "bevy-fps-counter",
  "rand 0.9.1",
 ]
 

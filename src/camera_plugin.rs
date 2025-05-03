@@ -4,10 +4,7 @@ use bevy::core_pipeline::bloom::Bloom;
 use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::prelude::*;
 
-use crate::{Line, Player};
-
-/// Camera lerp factor.
-const CAM_LERP_FACTOR: f32 = 3.7;
+use crate::Line;
 
 pub struct CameraPlugin;
 impl Plugin for CameraPlugin {
@@ -17,35 +14,9 @@ impl Plugin for CameraPlugin {
     }
 }
 
-fn setup_camera_v2(mut commands: Commands) {
-    commands.spawn((
-        Camera2d,
-        Camera {
-            hdr: true, // HDR is required for the bloom effect
-            ..default()
-        },
-        Bloom::NATURAL,
-    ));
-}
-
 /// How quickly should the camera snap to the desired location.
 const CAMERA_DECAY_RATE: f32 = 2.;
 
-/// Update the camera position by tracking the player.
-fn update_camera_v2(
-    mut camera: Single<&mut Transform, (With<Camera2d>, Without<Player>)>,
-    player: Single<&Transform, (With<Player>, Without<Camera2d>)>,
-    time: Res<Time>,
-) {
-    let Vec3 { x, y, .. } = player.translation;
-    let direction = Vec3::new(x, y, camera.translation.z);
-
-    // Applies a smooth effect to camera movement using stable interpolation
-    // between the camera position and the player position on the x and y axes.
-    camera
-        .translation
-        .smooth_nudge(&direction, CAMERA_DECAY_RATE, time.delta_secs());
-}
 
 
 fn setup_camera(mut commands: Commands) {
@@ -88,5 +59,5 @@ fn update_camera(
         cam_transform.scale.x -= 1. * time.delta_secs() * vel;
         cam_transform.scale.y -= 1. * time.delta_secs() * vel;
     }
-    println!("x:{}, y{}", cam_transform.scale.x, cam_transform.scale.y)
+    //println!("x:{}, y{}", cam_transform.scale.x, cam_transform.scale.y)
 }
