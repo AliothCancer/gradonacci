@@ -1,6 +1,7 @@
 mod camera_plugin;
 mod cube;
-mod player_plugin;
+mod cube_chain;
+mod player;
 
 use avian2d::prelude::*;
 use bevy::{
@@ -12,17 +13,8 @@ use bevy::{
 };
 use bevy_fps_counter::FpsCounterPlugin;
 use camera_plugin::CameraPlugin;
-use player_plugin::{Line, PlayerPlugin};
+use player::player_plugin::{Line, PlayerPlugin};
 use rand::{self, random_range};
-
-#[derive(Resource)]
-struct MyTimer(Timer);
-
-impl Default for MyTimer {
-    fn default() -> Self {
-        MyTimer(Timer::from_seconds(0.1, TimerMode::Once))
-    }
-}
 
 fn main() {
     App::new()
@@ -37,6 +29,14 @@ fn main() {
         .add_plugins(PlayerPlugin)
         .add_systems(Startup, spawn_terrain)
         .run();
+}
+
+#[derive(Resource)]
+struct MyTimer(Timer);
+impl Default for MyTimer {
+    fn default() -> Self {
+        MyTimer(Timer::from_seconds(0.01, TimerMode::Once))
+    }
 }
 
 #[derive(Component)]

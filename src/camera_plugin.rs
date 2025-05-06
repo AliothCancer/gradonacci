@@ -2,6 +2,7 @@
 
 use bevy::core_pipeline::bloom::Bloom;
 use bevy::core_pipeline::tonemapping::Tonemapping;
+use bevy::input::mouse::{AccumulatedMouseScroll, MouseScrollUnit};
 use bevy::prelude::*;
 
 use crate::Line;
@@ -15,9 +16,7 @@ impl Plugin for CameraPlugin {
 }
 
 /// How quickly should the camera snap to the desired location.
-const CAMERA_DECAY_RATE: f32 = 2.;
-
-
+const CAMERA_DECAY_RATE: f32 = 4.5;
 
 fn setup_camera(mut commands: Commands) {
     commands.spawn((
@@ -34,7 +33,7 @@ fn setup_camera(mut commands: Commands) {
 /// Update the camera position by tracking the player.
 fn update_camera(
     mut camera_query: Query<&mut Transform, (With<Camera2d>, Without<Line>)>,
-    kb_input: Res<ButtonInput<KeyCode>>,
+    mouse_scroll: Res<AccumulatedMouseScroll>,
     player_pos: Query<&Transform, (With<Line>, Without<Camera2d>)>,
     time: Res<Time>,
 ) {
@@ -50,14 +49,25 @@ fn update_camera(
         .translation
         .smooth_nudge(&direction, CAMERA_DECAY_RATE, time.delta_secs());
 
-    let vel = 0.2;
-    if kb_input.pressed(KeyCode::NumpadAdd) {
-        cam_transform.scale.x += 1. * time.delta_secs() * vel;
-        cam_transform.scale.y += 1. * time.delta_secs() * vel;
+    // CAMERA ZOOM SCROLL
+    let vel = 5.8;
+    let scroll_unit = mouse_scroll.delta.y;
+    if scroll_unit.abs() > 0.0 {
+        let delta = scroll_unit * time.delta_secs() * vel;
+        let (x, y, z) = (
+            cam_transform.scale.x,
+            cam_transform.scale.y,
+            cam_transform.scale.z,
+        );
+        cam_transform.scale = cam_transform.scale.lerp(
+            Vec3 {
+                x: x - delta,
+                y: y - delta,
+                z,
+            },
+            0.9,
+        );
     }
-    if kb_input.pressed(KeyCode::NumpadSubtract) {
-        cam_transform.scale.x -= 1. * time.delta_secs() * vel;
-        cam_transform.scale.y -= 1. * time.delta_secs() * vel;
-    }
+
     //println!("x:{}, y{}", cam_transform.scale.x, cam_transform.scale.y)
 }

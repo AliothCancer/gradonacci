@@ -1,41 +1,14 @@
 use std::time::Duration;
 
 use avian2d::prelude::*;
-use bevy::{prelude::*, state::commands};
+use bevy::prelude::*;
 
 use crate::{cube::Cube, MyTimer, Terrain};
 
+use super::mouse_interaction_plugin::{add_child, MouseInteractionPlugin, PlayerMouseCoor};
+
 /// Player movement speed factor.
 const PLAYER_SPEED: f32 = 10_000.;
-#[derive(Component)]
-struct Player {
-    n_cube: u32,
-}
-
-#[derive(Resource)]
-pub struct PlayerMouseCoor {
-    x: f32,
-    y: f32,
-}
-impl PlayerMouseCoor {
-    fn update(&mut self, x: f32, y: f32) {
-        self.x = x;
-        self.y = y;
-    }
-}
-impl Into<Vec2> for &PlayerMouseCoor {
-    fn into(self) -> Vec2 {
-        Vec2 {
-            x: self.x,
-            y: self.y,
-        }
-    }
-}
-impl Default for PlayerMouseCoor {
-    fn default() -> Self {
-        PlayerMouseCoor { x: 0.0, y: 0.0 }
-    }
-}
 
 #[derive(Component)]
 pub struct Line;
@@ -50,14 +23,20 @@ pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut bevy::app::App) {
-        app.init_resource::<PlayerMouseCoor>()
+        app.add_plugins(MouseInteractionPlugin)
             .add_systems(Startup, spawn_player)
             .add_systems(Update, update_mouse_player_coor)
+            .add_systems(FixedUpdate, (move_player, change_shape).chain())
+            .add_systems(Update, (spawn_cube_skill, despawn_cube_skill))
+            .add_systems(Update, add_child)
             .add_observer(on_cube_spawn)
-            .add_observer(on_insert_shape)
-            .add_systems(Update, (move_player, change_shape).chain())
-            .add_systems(Update, (spawn_cube_skill, despawn_cube_skill));
+            .add_observer(on_insert_shape);
     }
+}
+
+#[derive(Component)]
+struct Player {
+    n_cube: u32,
 }
 
 #[derive(Component, Clone, Copy)]
@@ -199,9 +178,6 @@ fn despawn_cube_skill(
             distance < cube.height / 2.0
         }) {
             commands.entity(entity).despawn();
-        } else {
-            //println!("return");
-            return;
         }
     }
 }
@@ -221,7 +197,7 @@ fn spawn_cube_skill(
     if mouse_input.pressed(MouseButton::Left) && spawn_timer.0.finished() {
         spawn_timer.0.reset();
         let (x_spawn, y_spawn) = (mouse_coor.x, mouse_coor.y);
-        let id = commands
+        let _id = commands
             .spawn(Cube::bundle(30.0, 30.0))
             .insert((
                 Transform::from_xyz(x_spawn, y_spawn, 0.0),
@@ -244,5 +220,5 @@ fn spawn_cube_skill(
 fn on_cube_spawn(_event: Trigger<OnAdd, Cube>, mut player: Query<&mut Player>) {
     let mut player = player.single_mut().unwrap();
     player.n_cube += 1;
-    println!("n cube: {}", player.n_cube);
+    //println!("n cube: {}", player.n_cube);
 }
