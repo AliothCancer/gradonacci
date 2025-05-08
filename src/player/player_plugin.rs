@@ -1,9 +1,10 @@
 use std::time::Duration;
 
-use avian2d::prelude::*;
+//use avian2d::prelude::*;
 use bevy::prelude::*;
+use bevy_rapier2d::prelude::*;
 
-use crate::{cube::Cube, MyTimer, Terrain};
+use crate::{cube::Cube, robot_constructor::Shape, MyTimer, Terrain};
 
 use super::mouse_interaction_plugin::{add_child, MouseInteractionPlugin, PlayerMouseCoor};
 
@@ -12,9 +13,6 @@ const PLAYER_SPEED: f32 = 10_000.;
 
 #[derive(Component)]
 pub struct Line;
-
-#[derive(Event)]
-struct SpawnedAcube;
 
 #[derive(Event)]
 struct ChangeShape;
@@ -26,54 +24,15 @@ impl Plugin for PlayerPlugin {
         app.add_plugins(MouseInteractionPlugin)
             .add_systems(Startup, spawn_player)
             .add_systems(Update, update_mouse_player_coor)
-            .add_systems(FixedUpdate, (move_player, change_shape).chain())
+            .add_systems(FixedUpdate, (change_shape, move_player).chain())
             .add_systems(Update, (spawn_cube_skill, despawn_cube_skill))
-            .add_systems(Update, add_child)
-            .add_observer(on_cube_spawn)
-            .add_observer(on_insert_shape);
+            .add_systems(Update, add_child);
     }
 }
 
 #[derive(Component)]
-struct Player {
-    n_cube: u32,
-}
+struct Player;
 
-#[derive(Component, Clone, Copy)]
-enum Shape {
-    Circle { radius: f32 },
-    Rectangle { width: f32, height: f32 },
-}
-
-fn on_insert_shape(
-    trigger: Trigger<OnInsert, Shape>,
-    shape: Query<&Shape>,
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-) {
-    let entity = trigger.target();
-    let Ok(shape) = shape.get(entity) else {
-        return;
-    };
-
-    let mesh_bundle = match *shape {
-        Shape::Circle { radius } => (
-            Mesh2d(meshes.add(Circle::new(radius))),
-            Collider::circle(radius),
-        ),
-        Shape::Rectangle { width, height } => (
-            Mesh2d(meshes.add(Rectangle::new(width, height))),
-            Collider::rectangle(width, height),
-        ),
-    };
-
-    let color = Color::linear_rgb(1., 0.0, 0.0);
-    commands.entity(entity).insert((
-        mesh_bundle,
-        MeshMaterial2d(materials.add(ColorMaterial::from_color(color))),
-    ));
-}
 fn change_shape(
     mut commands: Commands,
     kb_input: Res<ButtonInput<KeyCode>>,
@@ -97,12 +56,13 @@ fn spawn_player(mut commands: Commands) {
     let id = commands
         .spawn((
             // unique tags
-            Player { n_cube: 0 },
+            Player,
             Line,
             // physics
             RigidBody::Dynamic,
-            TransformInterpolation,
-            LinearVelocity::ZERO,
+            //TransformInterpolation,
+            //LinearVelocity::ZERO,
+            Velocity::zero(),
             Shape::Circle { radius: 34.0 },
             //ColliderDensity(1.0),
             // initial position
@@ -114,7 +74,7 @@ fn spawn_player(mut commands: Commands) {
 }
 
 fn move_player(
-    mut transform: Query<&mut LinearVelocity, With<Player>>,
+    mut transform: Query<&mut Velocity, With<Player>>,
     kb_input: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
     _spawn_timer: Res<MyTimer>,
@@ -122,21 +82,22 @@ fn move_player(
     //println!("timer: {}", spawn_timer.0.elapsed_secs());
     let delta_secs = time.delta_secs();
     //spawn_timer.0.tick(Duration::from_secs_f32(delta_secs));
-    let mut linear_vel = transform.single_mut().unwrap();
+    let mut transf = transform.single_mut().unwrap();
+
     if kb_input.pressed(KeyCode::KeyW) {
-        linear_vel.y += PLAYER_SPEED * delta_secs;
+        transf.linvel.y += PLAYER_SPEED * delta_secs;
     }
     if kb_input.pressed(KeyCode::KeyS) {
-        linear_vel.y -= PLAYER_SPEED * delta_secs;
+        transf.linvel.y -= PLAYER_SPEED * delta_secs;
     }
     if kb_input.pressed(KeyCode::KeyA) {
-        linear_vel.x -= PLAYER_SPEED * delta_secs;
+        transf.linvel.x -= PLAYER_SPEED * delta_secs;
     }
     if kb_input.pressed(KeyCode::KeyD) {
-        linear_vel.x += PLAYER_SPEED * delta_secs;
+        transf.linvel.x += PLAYER_SPEED * delta_secs;
     }
 
-    *linear_vel = LinearVelocity::from(linear_vel.lerp(Vec2::ZERO, 0.2));
+    transf.linvel = transf.linvel.lerp(Vec2::ZERO, 0.2);
 }
 
 fn update_mouse_player_coor(
@@ -182,11 +143,10 @@ fn despawn_cube_skill(
     }
 }
 fn spawn_cube_skill(
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
     mut commands: Commands,
     mouse_coor: Res<PlayerMouseCoor>,
     mouse_input: Res<ButtonInput<MouseButton>>,
+    kbd_input: Res<ButtonInput<KeyCode>>,
     mut spawn_timer: ResMut<MyTimer>,
     time: Res<Time>,
 ) {
@@ -194,18 +154,20 @@ fn spawn_cube_skill(
 
     spawn_timer.0.tick(Duration::from_secs_f32(delta_time));
 
-    if mouse_input.pressed(MouseButton::Left) && spawn_timer.0.finished() {
+    if mouse_input.pressed(MouseButton::Left)
+        && kbd_input.pressed(KeyCode::KeyP)
+        && spawn_timer.0.finished()
+    {
         spawn_timer.0.reset();
         let (x_spawn, y_spawn) = (mouse_coor.x, mouse_coor.y);
         let _id = commands
             .spawn(Cube::bundle(30.0, 30.0))
             .insert((
                 Transform::from_xyz(x_spawn, y_spawn, 0.0),
-                // appeareance
-                Mesh2d(meshes.add(Rectangle::new(30.0, 30.0))),
-                MeshMaterial2d(
-                    materials.add(ColorMaterial::from_color(LinearRgba::rgb(0.0, 0.0, 1.0))),
-                ),
+                Shape::Circle { radius: 20.0 },
+                RigidBody::Dynamic,
+                //TransformInterpolation,
+                Velocity::zero(),
             ))
             //.observe(on_cube_spawn) attacca un local observer all'entity
             .id();
@@ -215,10 +177,4 @@ fn spawn_cube_skill(
         //pl.n_cube += 1;
         //println!("n cube: {}", pl.n_cube);
     }
-}
-
-fn on_cube_spawn(_event: Trigger<OnAdd, Cube>, mut player: Query<&mut Player>) {
-    let mut player = player.single_mut().unwrap();
-    player.n_cube += 1;
-    //println!("n cube: {}", player.n_cube);
 }

@@ -11,11 +11,14 @@ opt-level = 3
 
 
 [dependencies]
-avian2d = { git = "https://github.com/Jondolf/avian", branch = "main" }
+#avian2d = { git = "https://github.com/Jondolf/avian", branch = "main" }
 bevy = { version = "0.16.0", features = [
     "wayland",
     "dynamic_linking",
     "bevy_dev_tools",
 ] }
 bevy-fps-counter = "0.7.0"
+bevy_rapier2d = { git = "https://github.com/dimforge/bevy_rapier", features = [
+    "debug-render-2d",
+] }
 rand = "0.9.1"

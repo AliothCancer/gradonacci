@@ -1,5 +1,6 @@
-use avian2d::prelude::*;
+//use avian2d::prelude::*;
 use bevy::prelude::*;
+use bevy_rapier2d::prelude::*;
 
 #[derive(Component)]
 pub struct Cube {
@@ -13,9 +14,8 @@ impl Cube {
             Self { width, height },
             // physics
             RigidBody::Dynamic,
-            TransformInterpolation,
-            Collider::rectangle(width, height),
-            LinearVelocity::ZERO,
+            //TransformInterpolation,
+            //LinearVelocity::ZERO,
             // initial position
             Transform::from_xyz(0.0, 0.0, 0.0),
         )
