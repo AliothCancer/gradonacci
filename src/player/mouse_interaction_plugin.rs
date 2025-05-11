@@ -2,6 +2,8 @@ use bevy::prelude::*;
 
 use crate::cube_chain::spawn_cube_chain;
 
+use super::resources::PlayerMouseCoor;
+
 pub struct MouseInteractionPlugin;
 
 impl Plugin for MouseInteractionPlugin {
@@ -11,11 +13,6 @@ impl Plugin for MouseInteractionPlugin {
     }
 }
 
-#[derive(Resource)]
-pub struct PlayerMouseCoor {
-    pub x: f32,
-    pub y: f32,
-}
 impl PlayerMouseCoor {
     pub fn update(&mut self, x: f32, y: f32) {
         self.x = x;
@@ -35,6 +32,3 @@ impl Default for PlayerMouseCoor {
         PlayerMouseCoor { x: 0.0, y: 0.0 }
     }
 }
-
-/// Add a cube to the the chain at click
-pub fn add_child(mouse_coor: Res<PlayerMouseCoor>) {}

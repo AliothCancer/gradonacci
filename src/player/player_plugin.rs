@@ -3,16 +3,18 @@ use std::time::Duration;
 //use avian2d::prelude::*;
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
+use rand::random_range;
 
-use crate::{cube::Cube, robot_constructor::Shape, MyTimer, Terrain};
+use crate::{
+    cube::Cube,
+    robot_constructor::{spawn_robot, EntityColor, Shape},
+    MyTimer, Terrain,
+};
 
-use super::mouse_interaction_plugin::{add_child, MouseInteractionPlugin, PlayerMouseCoor};
+use super::{mouse_interaction_plugin::MouseInteractionPlugin, resources::PlayerMouseCoor};
 
 /// Player movement speed factor.
 const PLAYER_SPEED: f32 = 10_000.;
-
-#[derive(Component)]
-pub struct Line;
 
 #[derive(Event)]
 struct ChangeShape;
@@ -25,13 +27,20 @@ impl Plugin for PlayerPlugin {
             .add_systems(Startup, spawn_player)
             .add_systems(Update, update_mouse_player_coor)
             .add_systems(FixedUpdate, (change_shape, move_player).chain())
-            .add_systems(Update, (spawn_cube_skill, despawn_cube_skill))
-            .add_systems(Update, add_child);
+            .add_systems(Update, (spawn_cube_skill, despawn_cube_skill));
     }
 }
 
 #[derive(Component)]
-struct Player;
+pub struct Player(pub ClickMode);
+#[derive(Clone, Copy, PartialEq)]
+pub enum ClickMode {
+    SpawnCube,
+    JoinCube,
+}
+
+#[derive(Default, Component)]
+pub struct PairEntitySelection(pub (Option<Entity>, Option<Entity>));
 
 fn change_shape(
     mut commands: Commands,
@@ -53,28 +62,19 @@ fn change_shape(
 }
 
 fn spawn_player(mut commands: Commands) {
-    let id = commands
-        .spawn((
-            // unique tags
-            Player,
-            Line,
-            // physics
-            RigidBody::Dynamic,
-            //TransformInterpolation,
-            //LinearVelocity::ZERO,
-            Velocity::zero(),
-            Shape::Circle { radius: 34.0 },
-            //ColliderDensity(1.0),
-            // initial position
-            Transform::from_xyz(0.0, 0.0, 0.0),
-            // appeareance
-        ))
-        .id();
-    commands.entity(id).trigger(ChangeShape);
+    let pl_id = spawn_robot(&mut commands);
+    // la prima volta che viene aggiunta un Shape viene
+    // contata come un evento ChangeShape
+    commands
+        .entity(pl_id)
+        .insert(Player(ClickMode::SpawnCube))
+        .insert(PairEntitySelection::default())
+        .observe(join_cube)
+        .trigger(ChangeShape);
 }
 
 fn move_player(
-    mut transform: Query<&mut Velocity, With<Player>>,
+    mut velocity: Query<&mut Velocity, With<Player>>,
     kb_input: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
     _spawn_timer: Res<MyTimer>,
@@ -82,22 +82,22 @@ fn move_player(
     //println!("timer: {}", spawn_timer.0.elapsed_secs());
     let delta_secs = time.delta_secs();
     //spawn_timer.0.tick(Duration::from_secs_f32(delta_secs));
-    let mut transf = transform.single_mut().unwrap();
+    let mut vel = velocity.single_mut().unwrap();
 
     if kb_input.pressed(KeyCode::KeyW) {
-        transf.linvel.y += PLAYER_SPEED * delta_secs;
+        vel.linvel.y += PLAYER_SPEED * delta_secs;
     }
     if kb_input.pressed(KeyCode::KeyS) {
-        transf.linvel.y -= PLAYER_SPEED * delta_secs;
+        vel.linvel.y -= PLAYER_SPEED * delta_secs;
     }
     if kb_input.pressed(KeyCode::KeyA) {
-        transf.linvel.x -= PLAYER_SPEED * delta_secs;
+        vel.linvel.x -= PLAYER_SPEED * delta_secs;
     }
     if kb_input.pressed(KeyCode::KeyD) {
-        transf.linvel.x += PLAYER_SPEED * delta_secs;
+        vel.linvel.x += PLAYER_SPEED * delta_secs;
     }
 
-    transf.linvel = transf.linvel.lerp(Vec2::ZERO, 0.2);
+    vel.linvel = vel.linvel.lerp(Vec2::ZERO, 0.2);
 }
 
 fn update_mouse_player_coor(
@@ -146,35 +146,60 @@ fn spawn_cube_skill(
     mut commands: Commands,
     mouse_coor: Res<PlayerMouseCoor>,
     mouse_input: Res<ButtonInput<MouseButton>>,
-    kbd_input: Res<ButtonInput<KeyCode>>,
+    _kbd_input: Res<ButtonInput<KeyCode>>,
     mut spawn_timer: ResMut<MyTimer>,
+    player: Single<&Player>,
     time: Res<Time>,
 ) {
-    let delta_time = time.delta_secs();
+    let click_mode = player.0;
+    if click_mode == ClickMode::JoinCube {
+        let delta_time = time.delta_secs();
 
-    spawn_timer.0.tick(Duration::from_secs_f32(delta_time));
+        spawn_timer.0.tick(Duration::from_secs_f32(delta_time));
 
-    if mouse_input.pressed(MouseButton::Left)
-        && kbd_input.pressed(KeyCode::KeyP)
-        && spawn_timer.0.finished()
-    {
-        spawn_timer.0.reset();
-        let (x_spawn, y_spawn) = (mouse_coor.x, mouse_coor.y);
-        let _id = commands
-            .spawn(Cube::bundle(30.0, 30.0))
-            .insert((
+        if mouse_input.pressed(MouseButton::Left)
+            //&& kbd_input.pressed(KeyCode::KeyP)
+            && spawn_timer.0.finished()
+        {
+            spawn_timer.0.reset();
+            let (x_spawn, y_spawn) = (mouse_coor.x, mouse_coor.y);
+            let rng = || random_range(0.0..1.0);
+            commands.spawn(Cube::bundle(30.0, 30.0)).insert((
+                EntityColor(Color::linear_rgb(rng(), rng(), rng())),
                 Transform::from_xyz(x_spawn, y_spawn, 0.0),
                 Shape::Circle { radius: 20.0 },
                 RigidBody::Dynamic,
-                //TransformInterpolation,
                 Velocity::zero(),
-            ))
+            ));
             //.observe(on_cube_spawn) attacca un local observer all'entity
-            .id();
-        //commands.trigger_targets(SpawnedAcube, id);
+            //commands.trigger_targets(SpawnedAcube, id);
 
-        //let mut pl = player.single_mut().unwrap();
-        //pl.n_cube += 1;
-        //println!("n cube: {}", pl.n_cube);
+            //let mut pl = player.single_mut().unwrap();
+            //pl.n_cube += 1;
+            //println!("n cube: {}", pl.n_cube);
+        }
     }
+}
+
+fn join_cube(
+    trig: Trigger<Pointer<Click>>,
+    mut selected_pair_entity: Single<&mut PairEntitySelection, With<Player>>,
+) {
+    let selected_entity = trig.target();
+    let (ent1, ent2) = selected_pair_entity.0;
+    let mut ents = [ent1, ent2];
+    dbg!(&ents);
+    match (ent1, ent2) {
+        (Some(_), Some(_)) => return,
+        _ => {
+            if let Some((n, _)) = ents
+                .into_iter()
+                .enumerate()
+                .find(|(_n, x)| matches!(x, None))
+            {
+                ents[n] = Some(selected_entity);
+            }
+        }
+    };
+    selected_pair_entity.0 = (ents[0], ents[1]);
 }

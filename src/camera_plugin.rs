@@ -2,10 +2,10 @@
 
 use bevy::core_pipeline::bloom::Bloom;
 use bevy::core_pipeline::tonemapping::Tonemapping;
-use bevy::input::mouse::{AccumulatedMouseScroll, MouseScrollUnit};
+use bevy::input::mouse::AccumulatedMouseScroll;
 use bevy::prelude::*;
 
-use crate::Line;
+use crate::player::player_plugin::Player;
 
 pub struct CameraPlugin;
 impl Plugin for CameraPlugin {
@@ -32,9 +32,9 @@ fn setup_camera(mut commands: Commands) {
 
 /// Update the camera position by tracking the player.
 fn update_camera(
-    mut camera_query: Query<&mut Transform, (With<Camera2d>, Without<Line>)>,
+    mut camera_query: Query<&mut Transform, (With<Camera2d>, Without<Player>)>,
     mouse_scroll: Res<AccumulatedMouseScroll>,
-    player_pos: Query<&Transform, (With<Line>, Without<Camera2d>)>,
+    player_pos: Query<&Transform, (With<Player>, Without<Camera2d>)>,
     time: Res<Time>,
 ) {
     let mut cam_transform = camera_query.single_mut().unwrap();

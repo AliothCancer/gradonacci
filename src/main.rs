@@ -3,7 +3,9 @@ mod cube;
 mod cube_chain;
 mod player;
 mod robot_constructor;
+mod ui;
 
+use ui::ui_plugin::MyUiPlugin;
 //use avian2d::prelude::*;
 use bevy::{
     color::palettes::{
@@ -11,26 +13,23 @@ use bevy::{
         tailwind::{BLUE_950, GREEN_800, RED_700, VIOLET_900, YELLOW_50},
     },
     prelude::*,
+    winit::WinitSettings,
 };
 use bevy_fps_counter::FpsCounterPlugin;
 use bevy_rapier2d::prelude::*;
 use camera_plugin::CameraPlugin;
 use cube::Cube;
-use player::player_plugin::{Line, PlayerPlugin};
+use player::player_plugin::PlayerPlugin;
 use rand::{self, random_range};
-use robot_constructor::{on_insert_shape_attach_mesh_and_material, RobotConstructorPlugin};
+use robot_constructor::RobotConstructorPlugin;
 
 fn main() {
     App::new()
         .init_resource::<MyTimer>()
         .init_resource::<NumberOfEntity>()
         .add_plugins(DefaultPlugins)
-        .add_plugins(RapierPickingPlugin)
-        //.add_plugins(PhysicsPlugins::default()) // avian plugin
-        //.insert_resource(Gravity(Vec2 {
-        //x: 0.0,
-        //y: -9.81 * 100.0,
-        //}))
+        .add_plugins(MeshPickingPlugin)
+        .add_plugins(MyUiPlugin)
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0)) // rapier2d
         //.add_plugins(RapierDebugRenderPlugin::default()) // rapier2d
         .add_plugins(FpsCounterPlugin)
@@ -47,8 +46,36 @@ fn main() {
 #[derive(Resource, Default)]
 pub struct NumberOfEntity(pub u32);
 
-pub fn on_cube_spawn(_event: Trigger<OnAdd, Cube>, mut number_of_entity: ResMut<NumberOfEntity>) {
+pub fn on_cube_spawn(
+    event: Trigger<OnAdd, Cube>,
+    mut number_of_entity: ResMut<NumberOfEntity>,
+    mut commands: Commands,
+) {
     number_of_entity.0 += 1;
+    let entity = event.target();
+    commands
+        .entity(entity)
+        .observe(
+            |out: Trigger<Pointer<Over>>,
+             mut materials: ResMut<Assets<ColorMaterial>>,
+             mut commands: Commands| {
+                let entity = out.target();
+                commands.entity(entity).insert(MeshMaterial2d(
+                    materials.add(ColorMaterial::from_color(GREEN_800)),
+                ));
+            },
+        )
+        .observe(
+            |out: Trigger<Pointer<Out>>,
+             mut materials: ResMut<Assets<ColorMaterial>>,
+             mut commands: Commands| {
+                let entity = out.target();
+                commands.entity(entity).insert(MeshMaterial2d(
+                    materials.add(ColorMaterial::from_color(BLUE_950)),
+                ));
+            },
+        );
+
     println!("n cube: {}", number_of_entity.0);
 }
 pub fn on_cube_despawn(
@@ -63,7 +90,7 @@ pub fn on_cube_despawn(
 struct MyTimer(Timer);
 impl Default for MyTimer {
     fn default() -> Self {
-        MyTimer(Timer::from_seconds(0.01, TimerMode::Once))
+        MyTimer(Timer::from_seconds(0.001, TimerMode::Once))
     }
 }
 
@@ -106,37 +133,41 @@ fn despawn_when_surpass_lower_bound_cond(
     q: Query<(Entity, &Transform)>,
 ) {
     let noe = q.iter().len();
-
+    let height = -7400.0;
     match noe {
         ..=600 => {
             q.iter().for_each(|(entity, transform)| {
-                if transform.translation.y < -150.0 {
+                if transform.translation.y < height {
                     commands.entity(entity).despawn();
                 }
             });
         }
         _ => {
             q.par_iter().for_each(|(entity, transform)| {
-                if transform.translation.y < -150.0 {
+                if transform.translation.y < height {
                     par_commands.command_scope(|mut commands| commands.entity(entity).despawn())
                 }
             });
         }
     }
 }
-fn despawn_when_surpass_lower_bound_single(mut commands: Commands, q: Query<(Entity, &Transform)>) {
+fn _despawn_when_surpass_lower_bound_single(
+    mut commands: Commands,
+    q: Query<(Entity, &Transform)>,
+) {
+    let height = -400.0;
     q.iter().for_each(|(entity, transform)| {
-        if transform.translation.y < -150.0 {
+        if transform.translation.y < height {
             commands.entity(entity).despawn();
         }
     });
 }
-fn despawn_when_surpass_lower_bound_par(
+fn _despawn_when_surpass_lower_bound_par(
     par_commands: ParallelCommands,
     q: Query<(Entity, &Transform)>,
 ) {
     q.par_iter().for_each(|(entity, transform)| {
-        if transform.translation.y < -150.0 {
+        if transform.translation.y < -400.0 {
             par_commands.command_scope(|mut commands| commands.entity(entity).despawn())
         }
     });
