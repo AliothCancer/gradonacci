@@ -13,9 +13,7 @@ use bevy::{
         tailwind::{BLUE_950, GREEN_800, RED_700, VIOLET_900, YELLOW_50},
     },
     prelude::*,
-    winit::WinitSettings,
 };
-use bevy_fps_counter::FpsCounterPlugin;
 use bevy_rapier2d::prelude::*;
 use camera_plugin::CameraPlugin;
 use cube::Cube;
@@ -31,8 +29,8 @@ fn main() {
         .add_plugins(MeshPickingPlugin)
         .add_plugins(MyUiPlugin)
         .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0)) // rapier2d
-        //.add_plugins(RapierDebugRenderPlugin::default()) // rapier2d
-        .add_plugins(FpsCounterPlugin)
+        .add_plugins(RapierDebugRenderPlugin::default()) // rapier2d
+        //.add_plugins(FpsCounterPlugin)
         .add_plugins(CameraPlugin)
         .add_plugins(PlayerPlugin)
         .add_plugins(RobotConstructorPlugin)

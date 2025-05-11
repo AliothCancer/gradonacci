@@ -27,21 +27,26 @@ impl Plugin for PlayerPlugin {
             .add_systems(Startup, spawn_player)
             .add_systems(Update, update_mouse_player_coor)
             .add_systems(FixedUpdate, (change_shape, move_player).chain())
-            .add_systems(Update, (spawn_cube_skill, despawn_cube_skill));
+            .add_systems(Update, (spawn_cube_skill, despawn_cube_skill))
+            .add_observer(connect_entities);
     }
 }
 
 #[derive(Component)]
 pub struct Player(pub ClickMode);
+
+/// Button state for the system SpawnCube -> on_cube_spawn and join_cube observer
 #[derive(Clone, Copy, PartialEq)]
 pub enum ClickMode {
     SpawnCube,
     JoinCube,
 }
 
+/// A component for storing 2 Entity and allow to connect them with a rapier joint
 #[derive(Default, Component)]
 pub struct PairEntitySelection(pub (Option<Entity>, Option<Entity>));
 
+/// Make the player of another form
 fn change_shape(
     mut commands: Commands,
     kb_input: Res<ButtonInput<KeyCode>>,
@@ -69,7 +74,6 @@ fn spawn_player(mut commands: Commands) {
         .entity(pl_id)
         .insert(Player(ClickMode::SpawnCube))
         .insert(PairEntitySelection::default())
-        .observe(join_cube)
         .trigger(ChangeShape);
 }
 
@@ -152,7 +156,7 @@ fn spawn_cube_skill(
     time: Res<Time>,
 ) {
     let click_mode = player.0;
-    if click_mode == ClickMode::JoinCube {
+    if click_mode == ClickMode::SpawnCube {
         let delta_time = time.delta_secs();
 
         spawn_timer.0.tick(Duration::from_secs_f32(delta_time));
@@ -164,13 +168,16 @@ fn spawn_cube_skill(
             spawn_timer.0.reset();
             let (x_spawn, y_spawn) = (mouse_coor.x, mouse_coor.y);
             let rng = || random_range(0.0..1.0);
-            commands.spawn(Cube::bundle(30.0, 30.0)).insert((
-                EntityColor(Color::linear_rgb(rng(), rng(), rng())),
-                Transform::from_xyz(x_spawn, y_spawn, 0.0),
-                Shape::Circle { radius: 20.0 },
-                RigidBody::Dynamic,
-                Velocity::zero(),
-            ));
+            commands
+                .spawn(Cube::bundle(30.0, 30.0))
+                .insert((
+                    EntityColor(Color::linear_rgb(rng(), rng(), rng())),
+                    Transform::from_xyz(x_spawn, y_spawn, 0.0),
+                    Shape::Circle { radius: 20.0 },
+                    RigidBody::Dynamic,
+                    Velocity::zero(),
+                ))
+                .observe(join_cube);
             //.observe(on_cube_spawn) attacca un local observer all'entity
             //commands.trigger_targets(SpawnedAcube, id);
 
@@ -181,25 +188,43 @@ fn spawn_cube_skill(
     }
 }
 
-fn join_cube(
+#[derive(Event)]
+struct ReadyToConnect;
+
+pub fn join_cube(
     trig: Trigger<Pointer<Click>>,
     mut selected_pair_entity: Single<&mut PairEntitySelection, With<Player>>,
+    mut commands: Commands,
 ) {
     let selected_entity = trig.target();
     let (ent1, ent2) = selected_pair_entity.0;
     let mut ents = [ent1, ent2];
-    dbg!(&ents);
-    match (ent1, ent2) {
-        (Some(_), Some(_)) => return,
-        _ => {
-            if let Some((n, _)) = ents
-                .into_iter()
-                .enumerate()
-                .find(|(_n, x)| matches!(x, None))
-            {
-                ents[n] = Some(selected_entity);
-            }
-        }
-    };
-    selected_pair_entity.0 = (ents[0], ents[1]);
+    if let Some((n, _)) = ents
+        .into_iter()
+        .enumerate()
+        .find(|(_n, x)| matches!(x, None))
+    {
+        ents[n] = Some(selected_entity);
+        dbg!(&ents);
+        selected_pair_entity.0 = (ents[0], ents[1]);
+    } else {
+        commands.trigger(ReadyToConnect);
+    }
+}
+
+fn connect_entities(
+    _trig: Trigger<ReadyToConnect>,
+    mut selected_entities: Query<&mut PairEntitySelection, With<Player>>,
+    mut commands: Commands,
+) {
+    let mut pair_entity = selected_entities.single_mut().unwrap();
+    let (ent1, ent2) = pair_entity.0;
+    let ent1 = ent1.unwrap();
+    let ent2 = ent2.unwrap();
+    let joint = RopeJointBuilder::new(80.0)
+        .local_anchor1(Vec2 { x: 0.0, y: 0.0 })
+        .local_anchor2(Vec2 { x: 0.0, y: 0.0 });
+    commands.entity(ent1).insert(ImpulseJoint::new(ent2, joint));
+
+    *pair_entity = PairEntitySelection((None, None));
 }
